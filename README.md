@@ -2,6 +2,13 @@
 
 Projeto de programação funcional que lê resultados de um campeonato, valida as partidas e calcula classificação e estatísticas. O código usa apenas módulos da biblioteca padrão (`base`).
 
+## Integrantes
+
+- Herick Alexandre Pontes de Moraes
+- Joao Vitor de Souza
+- Lucas Narloch Zabla
+- Rafael Soares
+
 ## Estrutura
 
 - `src/Tipos.hs`: tipos do domínio e consultas sobre partidas.
