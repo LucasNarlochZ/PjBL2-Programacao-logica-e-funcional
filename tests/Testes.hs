@@ -75,6 +75,19 @@ main = do
   testar "todos os erros"
     (todosOsErros entradaInvalida)
     [CamposInvalidos 1, NumeroInvalido 2, PlacarNegativo 3]
+  let linhaComDoisErros = "1;A;-1;0;A"
+  testar "relatório inclui dois erros na mesma linha"
+    (todosOsErros linhaComDoisErros) [PlacarNegativo 1, MesmoTime 1]
+  testar "leitura retorna apenas o primeiro erro da linha"
+    (lerCampeonato linhaComDoisErros) (Left (PlacarNegativo 1))
+  testar "números inválidos preservam outros erros da linha"
+    (todosOsErros "# cabeçalho\ntexto;A;texto;-1;A")
+    [NumeroInvalido 2, PlacarNegativo 2, MesmoTime 2]
+  testar "nome ausente tem prioridade e preserva erros numéricos"
+    (todosOsErros "texto; ;0;-1;A")
+    [CamposInvalidos 1, NumeroInvalido 1, PlacarNegativo 1]
+  testar "linha inválida não entra na verificação de repetições"
+    (todosOsErros (unlines ["1;A;0;0;B", linhaComDoisErros])) [PlacarNegativo 2, MesmoTime 2]
   let tabela = tabelaFormatada [Linha "Coritiba" 1 1 0 0 2 0]
   testar "colunas e valores da tabela"
     (lines tabela)

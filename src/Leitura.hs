@@ -50,23 +50,37 @@ lerNumero linha texto =
         _ -> Left (NumeroInvalido linha)
 
 lerPartida :: Int -> String -> Either Erro Partida
-lerPartida numeroLinha texto =
+lerPartida numeroLinha = either (Left . fst) Right . analisarPartida numeroLinha
+
+analisarPartida :: Int -> String -> Either (Erro, [Erro]) Partida
+analisarPartida numeroLinha texto =
     case map aparar (separar ';' texto) of
         [txtRodada, nomeMandante, txtGolsMandante, txtGolsVisitante, nomeVisitante]
-            | not (null nomeMandante || null nomeVisitante) -> do
+            | nomeAusente ->
+                Left (CamposInvalidos numeroLinha, [erro | Left erro <- [partida]] ++ errosDoPlacar)
+            | otherwise ->
+                case partida of
+                    Left erro -> Left (erro, errosDoPlacar)
+                    Right jogo -> case errosDoPlacar of
+                        [] -> Right jogo
+                        erro : outros -> Left (erro, outros)
+          where
+            nomeAusente = null nomeMandante || null nomeVisitante
+            golsMandanteLidos = lerNumero numeroLinha txtGolsMandante
+            golsVisitanteLidos = lerNumero numeroLinha txtGolsVisitante
+            temGolNegativo = any (either (const False) (< 0)) [golsMandanteLidos, golsVisitanteLidos]
+            errosDoPlacar =
+                [PlacarNegativo numeroLinha | temGolNegativo]
+                ++ [MesmoTime numeroLinha | not nomeAusente && nomeMandante == nomeVisitante]
+            partida = do
                 numeroRodada <- lerNumero numeroLinha txtRodada
-                golsCasa <- lerNumero numeroLinha txtGolsMandante
-                golsFora <- lerNumero numeroLinha txtGolsVisitante
-                validarPlacar numeroRodada nomeMandante golsCasa golsFora nomeVisitante
-        _ -> Left (CamposInvalidos numeroLinha)
-  where
-    validarPlacar numeroRodada nomeMandante golsCasa golsFora nomeVisitante
-        | golsCasa < 0 || golsFora < 0 = Left (PlacarNegativo numeroLinha)
-        | nomeMandante == nomeVisitante = Left (MesmoTime numeroLinha)
-        | otherwise = Right Partida
-            { rodada = numeroRodada, mandante = nomeMandante, visitante = nomeVisitante
-            , golsMandante = golsCasa, golsVisitante = golsFora
-            }
+                golsCasa <- golsMandanteLidos
+                golsFora <- golsVisitanteLidos
+                Right Partida
+                    { rodada = numeroRodada, mandante = nomeMandante, visitante = nomeVisitante
+                    , golsMandante = golsCasa, golsVisitante = golsFora
+                    }
+        _ -> Left (CamposInvalidos numeroLinha, [])
 
 data Participacao = Participacao
     { nomeTime :: Time
@@ -137,9 +151,9 @@ lerCampeonato texto = do
 todosOsErros :: String -> [Erro]
 todosOsErros texto = errosDeLinha ++ errosCampeonato partidasValidas
   where
-    resultados = map lerLinha (linhasComNumero texto)
-    errosDeLinha = [erro | Left erro <- resultados]
-    partidasValidas = [partida | Right partida <- resultados]
+    resultados = [(numero, analisarPartida numero linha) | (numero, linha) <- linhasComNumero texto]
+    errosDeLinha = [erro | (_, Left (primeiro, outros)) <- resultados, erro <- primeiro : outros]
+    partidasValidas = [(numero, partida) | (numero, Right partida) <- resultados]
 
 tabelaFormatada :: [Linha] -> String
 

@@ -8,6 +8,7 @@
 - A verificação de repetições ordena e agrupa as participações por rodada e time, evitando varrer todas as partidas para cada time. Os erros de repetição seguem a ordem da primeira participação de cada time naquela rodada.
 - A média soma os gols em `Integer` antes de converter para `Double`. A classificação mantém gols pró, gols contra e saldo em `Int`. O leitor devolve `TotalGolsExcedido` com a primeira linha em que o total de gols pró ou contra daquele time ultrapassa o limite da tabela.
 - Números de linha contam linhas físicas do texto, incluindo comentários e linhas vazias. Comentários são linhas cujo primeiro caractere não branco é `#`.
+- Com cinco campos, o relatório lista cada tipo de erro identificável na mesma linha, na ordem de campos inválidos, números inválidos, placar negativo e mesmo time. Uma quantidade incorreta de campos gera apenas `CamposInvalidos`, pois o formato da linha não permite identificar os demais campos com segurança.
 
 ## Limitações conhecidas
 

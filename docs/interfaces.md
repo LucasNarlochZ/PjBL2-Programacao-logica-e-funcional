@@ -52,7 +52,7 @@ todosOsErros :: String -> [Erro]
 tabelaFormatada :: [Linha] -> String
 ```
 
-The `Int` in the first four constructors identifies the original input line, numbered from 1. `TimeRepetidoNaRodada` identifies the round and the team that appears more than once. `TotalGolsExcedido` identifies the line where a team's goals for or against first exceed the upper bound of `Int`. `lerCampeonato` checks line errors first, then repeated appearances and goal totals. `todosOsErros` reports errors in the same order and checks repetitions and totals across individually valid matches.
+The `Int` in the first four constructors identifies the original input line, numbered from 1. `TimeRepetidoNaRodada` identifies the round and the team that appears more than once. `TotalGolsExcedido` identifies the line where a team's goals for or against first exceed the upper bound of `Int`. `lerCampeonato` checks line errors first, then repeated appearances and goal totals. `todosOsErros` reports errors in the same order and checks repetitions and totals across individually valid matches. For lines with five fields, it reports each detected error type once per line. A wrong field count produces only `CamposInvalidos`.
 
 ## `Main`
 
