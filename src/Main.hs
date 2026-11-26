@@ -22,4 +22,5 @@ demonstrar partidas = do
   putStrLn ("Maior goleada: " ++ maybe "sem partidas" show (maiorGoleada partidas))
   putStrLn ("Média de gols: " ++ maybe "sem partidas" show (mediaGols partidas))
   putStrLn "\nDemonstração de entradas inválidas:"
-  mapM_ (putStrLn . show) (todosOsErros "1;Time A;dois;0;Time B\n1;Time C;0;0;Time C\n1;Time A;1;0;Time D")
+  mapM_ (putStrLn . show) (todosOsErros
+    "1;Time A;dois;0;Time B\n1;Time C;0;0;Time C\n1;Time A;1;0;Time D\n1;Time A;2;0;Time E\n1;Time F;0;0")
