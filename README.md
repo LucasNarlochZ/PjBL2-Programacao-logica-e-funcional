@@ -14,7 +14,7 @@ Projeto de programação funcional que lê resultados de um campeonato, valida a
 
 ## Compilar e executar
 
-Com GHC instalado, na raiz do projeto:
+Use o GHC local. A demonstração e os testes foram verificados com GHC 9.4.7 no Linux, nos locales `C` e `C.UTF-8`. Ambos escrevem em UTF-8 para preservar os acentos. Na raiz do projeto:
 
 ```sh
 ghc -Wall -isrc src/Main.hs -o campeonato

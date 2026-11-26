@@ -104,4 +104,5 @@ mediaGols partidas =
   Just (fromIntegral totalGols / fromIntegral totalPartidas)
   where
     (totalGols, totalPartidas) =
-      foldl' (\(g, n) p -> (g + golsMandante p + golsVisitante p, n + 1)) (0, 0 :: Int) partidas
+      foldl' (\(g, n) p -> (g + toInteger (golsMandante p) + toInteger (golsVisitante p), n + 1))
+        (0, 0 :: Int) partidas

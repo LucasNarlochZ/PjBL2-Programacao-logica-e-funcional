@@ -8,7 +8,7 @@ module Leitura
     ) where
 
 import Data.Char (isSpace)
-import Data.List (dropWhileEnd, intercalate, isPrefixOf, nub)
+import Data.List (dropWhileEnd, groupBy, intercalate, isPrefixOf, sortOn)
 import Text.Read (readMaybe)
 
 import Tipos
@@ -28,6 +28,7 @@ data Erro
     | PlacarNegativo Int
     | MesmoTime Int
     | TimeRepetidoNaRodada Int Time
+    | TotalGolsExcedido Int Time
     deriving (Eq, Show)
 
 aparar :: String -> String
@@ -35,18 +36,12 @@ aparar = dropWhileEnd isSpace . dropWhile isSpace
 
 
 separar :: Char -> String -> [String]
-
 separar delimitador texto =
     case break (== delimitador) texto of
-        (campo, []) ->
-            [campo]
-
-        (campo, _:resto) ->
-            campo : separar delimitador resto
-
+        (campo, []) -> [campo]
+        (campo, _:resto) -> campo : separar delimitador resto
 
 lerNumero :: Int -> String -> Either Erro Int
-
 lerNumero linha texto =
     case readMaybe texto :: Maybe Integer of
         Just numero
@@ -54,143 +49,97 @@ lerNumero linha texto =
             , numero <= toInteger (maxBound :: Int) -> Right (fromInteger numero)
         _ -> Left (NumeroInvalido linha)
 
-
 lerPartida :: Int -> String -> Either Erro Partida
-
 lerPartida numeroLinha texto =
     case map aparar (separar ';' texto) of
-
-        [txtRodada, nomeMandante, txtGolsMandante,
-         txtGolsVisitante, nomeVisitante]
-
-            | null nomeMandante || null nomeVisitante ->
-                Left (CamposInvalidos numeroLinha)
-
-            | otherwise -> do
-
+        [txtRodada, nomeMandante, txtGolsMandante, txtGolsVisitante, nomeVisitante]
+            | not (null nomeMandante || null nomeVisitante) -> do
                 numeroRodada <- lerNumero numeroLinha txtRodada
-
                 golsCasa <- lerNumero numeroLinha txtGolsMandante
-
                 golsFora <- lerNumero numeroLinha txtGolsVisitante
+                validarPlacar numeroRodada nomeMandante golsCasa golsFora nomeVisitante
+        _ -> Left (CamposInvalidos numeroLinha)
+  where
+    validarPlacar numeroRodada nomeMandante golsCasa golsFora nomeVisitante
+        | golsCasa < 0 || golsFora < 0 = Left (PlacarNegativo numeroLinha)
+        | nomeMandante == nomeVisitante = Left (MesmoTime numeroLinha)
+        | otherwise = Right Partida
+            { rodada = numeroRodada, mandante = nomeMandante, visitante = nomeVisitante
+            , golsMandante = golsCasa, golsVisitante = golsFora
+            }
 
-                if golsCasa < 0 || golsFora < 0
-                    then Left (PlacarNegativo numeroLinha)
+data Participacao = Participacao
+    { nomeTime :: Time
+    , rodadaDaPartida :: Int
+    , ordemEntrada :: (Int, Bool)
+    , golsFeitos :: Int
+    , golsSofridos :: Int
+    }
 
-                    else if nomeMandante == nomeVisitante
-                        then Left (MesmoTime numeroLinha)
+participacoes :: (Int, Partida) -> [Participacao]
+participacoes (linha, partida) =
+    [ Participacao (mandante partida) (rodada partida) (linha, False) casa fora
+    , Participacao (visitante partida) (rodada partida) (linha, True) fora casa
+    ]
+  where
+    casa = golsMandante partida
+    fora = golsVisitante partida
 
-                        else Right
-                            (Partida
-                                { rodada = numeroRodada
-                                , mandante = nomeMandante
-                                , golsMandante = golsCasa
-                                , golsVisitante = golsFora
-                                , visitante = nomeVisitante
-                                })
+agruparPor :: Ord chave => (a -> chave) -> [a] -> [[a]]
+agruparPor chave = groupBy (\a b -> chave a == chave b) . sortOn chave
 
-        _ ->
-            Left (CamposInvalidos numeroLinha)
-
-
-quantidadeNaRodada :: Int -> Time -> [Partida] -> Int
-
-quantidadeNaRodada numeroRodada nomeTime partidas =
-    length
-        (filter
-            (\p ->
-                rodada p == numeroRodada &&
-                (mandante p == nomeTime ||
-                 visitante p == nomeTime)
-            )
-            partidas
-        )
-
-
-errosRepetidos :: [Partida] -> [Erro]
-
-errosRepetidos partidas =
-    nub
-        [ TimeRepetidoNaRodada numeroRodada nomeTime
-
-        | partida <- partidas
-
-        , let numeroRodada = rodada partida
-
-        , nomeTime <- [mandante partida, visitante partida]
-
-        , quantidadeNaRodada numeroRodada nomeTime partidas > 1
+errosCampeonato :: [(Int, Partida)] -> [Erro]
+errosCampeonato partidas =
+    map snd (sortOn fst repeticoes) ++ map snd (sortOn fst totaisExcedidos)
+  where
+    registros = concatMap participacoes partidas
+    repeticoes =
+        [ (ordemEntrada p, TimeRepetidoNaRodada (rodadaDaPartida p) (nomeTime p))
+        | p : _ : _ <- agruparPor (\p -> (rodadaDaPartida p, nomeTime p)) registros
+        ]
+    totaisExcedidos =
+        [ (ordemEntrada p, TotalGolsExcedido (fst (ordemEntrada p)) (nomeTime p))
+        | Just p <- map encontrouExcesso (agruparPor nomeTime registros)
         ]
 
+encontrouExcesso :: [Participacao] -> Maybe Participacao
+encontrouExcesso = acumular 0 0
+  where
+    limite = toInteger (maxBound :: Int)
 
-validarRepeticao :: [Partida] -> Either Erro [Partida]
-
-validarRepeticao partidas =
-    case errosRepetidos partidas of
-
-        [] ->
-            Right partidas
-
-        primeiroErro : _ ->
-            Left primeiroErro
-
+    acumular _ _ [] = Nothing
+    acumular pro contra (p : resto)
+        | novosPro > limite || novosContra > limite = Just p
+        | otherwise = acumular novosPro novosContra resto
+      where
+        novosPro = pro + toInteger (golsFeitos p)
+        novosContra = contra + toInteger (golsSofridos p)
 
 linhasComNumero :: String -> [(Int, String)]
-
 linhasComNumero texto =
     [ (numero, conteudo)
-
     | (numero, linha) <- zip [1..] (lines texto)
-
     , let conteudo = aparar linha
-
     , not (null conteudo)
-
     , not ("#" `isPrefixOf` conteudo)
     ]
 
-
+lerLinha :: (Int, String) -> Either Erro (Int, Partida)
+lerLinha (numero, texto) = fmap ((,) numero) (lerPartida numero texto)
 
 lerCampeonato :: String -> Either Erro [Partida]
-
 lerCampeonato texto = do
-
-    partidas <-
-        traverse
-            (uncurry lerPartida)
-            (linhasComNumero texto)
-
-    validarRepeticao partidas
-
-
-
+    partidas <- traverse lerLinha (linhasComNumero texto)
+    case errosCampeonato partidas of
+        [] -> Right (map snd partidas)
+        erro : _ -> Left erro
 
 todosOsErros :: String -> [Erro]
-
-todosOsErros texto = errosDeLinha ++ errosDeRodada
-
-    where
-
-        resultados =
-            map
-                (uncurry lerPartida)
-                (linhasComNumero texto)
-
-        errosDeLinha =
-            [ erro
-            | Left erro <- resultados
-            ]
-
-        partidasValidas =
-            [ partida
-            | Right partida <- resultados
-            ]
-
-        errosDeRodada =
-            errosRepetidos partidasValidas
-
-
-
+todosOsErros texto = errosDeLinha ++ errosCampeonato partidasValidas
+  where
+    resultados = map lerLinha (linhasComNumero texto)
+    errosDeLinha = [erro | Left erro <- resultados]
+    partidasValidas = [partida | Right partida <- resultados]
 
 tabelaFormatada :: [Linha] -> String
 

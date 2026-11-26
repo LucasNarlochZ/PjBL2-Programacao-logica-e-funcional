@@ -1,8 +1,10 @@
 module Main (main) where
 
 import System.Exit (exitFailure)
+import System.IO (hSetEncoding, stdout, utf8)
 
-import Classificacao (ateRodada, classificacao, maiorGoleada, mediaGols, pontosLinha, saldo)
+import Classificacao
+  ( aproveitamento, ateRodada, classificacao, linhaDoTime, maiorGoleada, mediaGols, pontosLinha, saldo )
 import Dados (dadosCampeonato)
 import Leitura (Erro(..), lerCampeonato, lerPartida, tabelaFormatada, todosOsErros)
 import Tipos (Linha(..), Partida(..), Resultado(..), resultadoPara, times)
@@ -17,6 +19,7 @@ testar nome obtido esperado =
 
 main :: IO ()
 main = do
+  hSetEncoding stdout utf8
   testar "campeonato válido" (fmap length (lerCampeonato dadosCampeonato)) (Right 15)
   case lerCampeonato dadosCampeonato of
     Left erro -> do
@@ -42,6 +45,31 @@ main = do
   testar "time repetido na rodada"
     (lerCampeonato "1;Coritiba;2;0;Paraná\n1;Maringá;0;1;Coritiba")
     (Left (TimeRepetidoNaRodada 1 "Coritiba"))
+  testar "mesmo time com o mesmo mando em outra rodada"
+    (fmap length (lerCampeonato "1;Coritiba;2;0;Paraná\n2;Maringá;0;1;Coritiba"))
+    (Right 2)
+  let errosCombinados = "1;Z;0;0;A\n1;Z;0;0;A\n2;B;dois;0;C"
+  testar "erro de linha tem prioridade sobre repetição"
+    (lerCampeonato errosCombinados) (Left (NumeroInvalido 3))
+  testar "repetições são únicas e seguem a ordem de entrada"
+    (todosOsErros errosCombinados) [NumeroInvalido 3, TimeRepetidoNaRodada 1 "Z", TimeRepetidoNaRodada 1 "A"]
+  testar "campeonato sem partidas" (lerCampeonato "# comentário\n \t\n") (Right [])
+  testar "aproveitamento sem jogos" (aproveitamento (linhaDoTime [] "Coritiba")) 0
+  testar "formatação da tabela vazia" (length (lines (tabelaFormatada []))) 2
+  testar "desempate por gols pró"
+    (take 2 (map time (classificacao [Partida 1 "Z" 2 1 "Y", Partida 1 "A" 1 0 "X"]))) ["Z", "A"]
+  testar "desempate por nome"
+    (take 2 (map time (classificacao [Partida 1 "Z" 1 0 "Y", Partida 1 "A" 1 0 "X"]))) ["A", "Z"]
+  let limite = maxBound :: Int
+      placarNoLimite = "1;A;" ++ show limite ++ ";1;B"
+  testar "média de gols soma além do limite de Int"
+    (fmap mediaGols (lerCampeonato placarNoLimite))
+    (Right (Just (fromInteger (toInteger limite + 1))))
+  let totaisExcedidos = unlines ["1;A;" ++ show limite ++ ";0;B", "# intervalo", "2;A;1;0;B"]
+  testar "total de gols acima do limite da tabela"
+    (lerCampeonato totaisExcedidos) (Left (TotalGolsExcedido 3 "A"))
+  testar "relatório inclui totais excedidos de gols pró e contra"
+    (todosOsErros totaisExcedidos) [TotalGolsExcedido 3 "A", TotalGolsExcedido 3 "B"]
   let entradaInvalida = unlines ["1;Coritiba;2;0", "1;Coritiba;dois;0;Paraná", "1;Coritiba;-2;0;Paraná"]
   testar "primeiro erro" (lerCampeonato entradaInvalida) (Left (CamposInvalidos 1))
   testar "todos os erros"
