@@ -48,10 +48,11 @@ separar delimitador texto =
 lerNumero :: Int -> String -> Either Erro Int
 
 lerNumero linha texto =
-    maybe
-        (Left (NumeroInvalido linha))
-        Right
-        (readMaybe texto)
+    case readMaybe texto :: Maybe Integer of
+        Just numero
+            | numero >= toInteger (minBound :: Int)
+            , numero <= toInteger (maxBound :: Int) -> Right (fromInteger numero)
+        _ -> Left (NumeroInvalido linha)
 
 
 lerPartida :: Int -> String -> Either Erro Partida

@@ -2,9 +2,10 @@ module Main (main) where
 
 import System.Exit (exitFailure)
 
+import Classificacao (ateRodada, classificacao, maiorGoleada, mediaGols, pontosLinha, saldo)
 import Dados (dadosCampeonato)
 import Leitura (Erro(..), lerCampeonato, lerPartida, tabelaFormatada, todosOsErros)
-import Tipos (Linha(..), Partida(..))
+import Tipos (Linha(..), Partida(..), Resultado(..), resultadoPara, times)
 
 testar :: (Eq a, Show a) => String -> a -> a -> IO ()
 testar nome obtido esperado =
@@ -17,6 +18,11 @@ testar nome obtido esperado =
 main :: IO ()
 main = do
   testar "campeonato válido" (fmap length (lerCampeonato dadosCampeonato)) (Right 15)
+  case lerCampeonato dadosCampeonato of
+    Left erro -> do
+      print erro
+      exitFailure
+    Right partidas -> testarClassificacao partidas
   testar "espaços nos campos"
     (lerPartida 1 " 1 ; Coritiba ; 2 ; 0 ; Paraná ")
     (Right (Partida 1 "Coritiba" 2 0 "Paraná"))
@@ -27,6 +33,10 @@ main = do
   testar "número inválido na linha original"
     (lerCampeonato "# cabeçalho\n\n1;Coritiba;dois;0;Paraná")
     (Left (NumeroInvalido 3))
+  let foraDoLimite = show (2 * (toInteger (maxBound :: Int) + 1))
+  testar "placar acima do limite de Int"
+    (lerPartida 1 ("1;Coritiba;" ++ foraDoLimite ++ ";0;Paraná"))
+    (Left (NumeroInvalido 1))
   testar "placar negativo" (lerCampeonato "1;Coritiba;-2;0;Paraná") (Left (PlacarNegativo 1))
   testar "mesmo time" (lerCampeonato "1;Coritiba;2;0;Coritiba") (Left (MesmoTime 1))
   testar "time repetido na rodada"
@@ -44,3 +54,36 @@ main = do
     , replicate 41 '-'
     , "  1 | Coritiba |   3 | 1 | 1 | 0 | 0 |  2"
     ]
+
+testarClassificacao :: [Partida] -> IO ()
+testarClassificacao partidas = do
+  let abertura = Partida 1 "Athletico" 4 0 "Paraná"
+      tabelaFinal = classificacao partidas
+      esperadoFinal =
+        [ Linha "Athletico" 5 3 1 1 8 3
+        , Linha "Coritiba" 5 2 2 1 5 3
+        , Linha "Operário" 5 2 2 1 4 4
+        , Linha "Maringá" 5 2 1 2 6 6
+        , Linha "Londrina" 5 1 1 3 2 5
+        , Linha "Paraná" 5 1 1 3 4 8
+        ]
+      esperadoRodada3 =
+        [ Linha "Athletico" 3 2 1 0 7 2
+        , Linha "Coritiba" 3 2 1 0 4 1
+        , Linha "Operário" 3 1 2 0 2 1
+        , Linha "Maringá" 3 1 0 2 3 5
+        , Linha "Paraná" 3 1 0 2 3 6
+        , Linha "Londrina" 3 0 0 3 1 5
+        ]
+      empatados = filter ((== 8) . pontosLinha) tabelaFinal
+  testar "resultado do mandante" (resultadoPara "Athletico" abertura) (Just Vitoria)
+  testar "resultado do visitante" (resultadoPara "Paraná" abertura) (Just Derrota)
+  testar "resultado de time ausente" (resultadoPara "Maringá" abertura) Nothing
+  testar "times únicos e ordenados" (times partidas)
+    ["Athletico", "Coritiba", "Londrina", "Maringá", "Operário", "Paraná"]
+  testar "classificação final" tabelaFinal esperadoFinal
+  testar "desempate por saldo com oito pontos"
+    (map (\linha -> (time linha, saldo linha)) empatados) [("Coritiba", 2), ("Operário", 0)]
+  testar "classificação até a rodada 3" (classificacao (ateRodada 3 partidas)) esperadoRodada3
+  testar "maior goleada sem partidas" (maiorGoleada []) Nothing
+  testar "média de gols sem partidas" (mediaGols []) Nothing
